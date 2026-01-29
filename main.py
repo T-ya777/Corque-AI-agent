@@ -1,6 +1,5 @@
 from core.agent import Agent
 from tools.todoListTools import initTodoList
-
 import time
 def main():
     initTodoList()
