@@ -1,3 +1,109 @@
-Welcome to Corque!
+# Corque AI Agent
 
-Corque is a self-designed local AI assistant based on framework of Ollama and Langchain founded by StDoses72.
+Corque is a personal AI assistant that runs on your computer. Think of it as a helpful assistant that can manage your todo list, check the weather, send emails, and search the web - all through a simple chat interface.
+
+## What Can Corque Do?
+
+Corque comes with a bunch of useful tools built right in:
+
+- **Todo List Management**: Add tasks, check what's due, mark things as done, and see your upcoming todos
+- **Email**: Send emails (with your approval first, so nothing goes out without you checking it)
+- **Weather**: Get current weather info for any location
+- **Web Search**: Look things up online when you need real-time information
+- **Time Tools**: Handle timezone conversions and date calculations automatically
+
+The best part? You just talk to it naturally. Ask it to "add a todo for tomorrow" or "what's the weather in New York?" and it figures out what to do.
+
+## Getting Started
+
+### Prerequisites
+
+You'll need a few things installed first:
+
+- Python 3.9 or higher
+- Ollama installed and running on your system
+- The `qwen3:8b` model in Ollama (or you can change it in the config)
+
+### Installation
+
+1. Clone or download this repository
+
+2. Install the required Python packages. You'll need:
+   - `langchain`
+   - `langchain-ollama`
+   - `langgraph`
+   - `python-dotenv`
+   - `tzlocal`
+   - `tavily-python` (for web search)
+   - Standard library stuff like `smtplib` and `imaplib` (usually already included)
+
+   You can install them with:
+   ```
+   pip install langchain langchain-ollama langgraph python-dotenv tzlocal tavily-python
+   ```
+
+3. Set up your environment variables. Create a `.env` file in the project root with your email settings:
+
+   ```
+   OTS_EMAIL_USER=your-email@example.com
+   OTS_EMAIL_PASS=your-email-password
+   OTS_SMTP_SERVER=smtp.example.com
+   OTS_IMAP_SERVER=imap.example.com
+   TAVILY_API_KEY=your-tavily-api-key #Optional, if you want to use web search provided by tavily
+   OPENAI_API_KEY=your-openai-key  # Optional, if you want to use OpenAI instead
+   ```
+
+   The email settings depend on your email provider. For Gmail, you'd use `smtp.gmail.com` and `imap.gmail.com`, but you'll need an app-specific password.
+
+4. Make sure Ollama is running and has the model you want to use. The default is `qwen3:8b`, but you can change it in `config/settings.py` if you prefer a different model.
+
+### Running Corque
+
+On Windows, you can just double-click `run.bat`, or run:
+```
+python main.py
+```
+
+Once it starts, you'll see "Corque is ready to assist you!" and you can start chatting. Type `quit` when you're done.
+
+## How It Works
+
+Corque uses LangChain and LangGraph to create an AI agent that can use tools. When you ask it something, it decides which tools (if any) it needs to use, uses them behind the scenes, and gives you a clean answer.
+
+For example, if you say "add a todo to buy groceries tomorrow", it will:
+1. Figure out what "tomorrow" means in actual time
+2. Add the task to the SQLite database
+3. Tell you it's done
+
+All the technical stuff happens automatically - you just get the result.
+
+## Email Safety
+
+When Corque wants to send an email, it stops and asks for your approval first. You'll see the recipient, subject, and body, and you can approve it, edit it, or reject it. This way nothing goes out without you knowing about it.
+
+## Customization
+
+You can tweak things in `config/settings.py`:
+- Change the model name (default is `qwen3:8b`)
+- Adjust the number of threads
+- Modify other settings
+
+The todo list is stored in `data/CorqueDB.db` as a SQLite database. It gets created automatically the first time you run Corque.
+
+## Notes
+
+- The first time you run it, the database will be created automatically
+- Email sending requires your email credentials in the `.env` file
+- Web search needs a Tavily API key (you can get one at tavily.com)
+- The agent is designed to be direct and helpful - it won't give you extra suggestions unless you ask
+
+## Troubleshooting
+
+If something's not working:
+- Make sure Ollama is running and the model is downloaded
+- Check that your `.env` file has all the required variables
+- Verify your email settings are correct (especially if using Gmail, you'll need an app password)
+- Make sure all Python packages are installed
+- Make sure that your CUDA toolkit and your GPU driver is correctly deployed
+
+That's about it! Corque is pretty straightforward - just start it up and start asking it things.
