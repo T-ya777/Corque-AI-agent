@@ -49,7 +49,7 @@ You'll need a few things installed first:
    OTS_EMAIL_PASS=your-email-password
    OTS_SMTP_SERVER=smtp.example.com
    OTS_IMAP_SERVER=imap.example.com
-   TAVILY_API_KEY=your-tavily-api-key #Optional, if you want to use web search provided by tavily
+   TAVILY_API_KEY=your-tavily-api-key # Optional, if you want to use web search provided by tavily
    OPENAI_API_KEY=your-openai-key  # Optional, if you want to use OpenAI instead
    ```
 
@@ -89,6 +89,42 @@ You can tweak things in `config/settings.py`:
 - Modify other settings
 
 The todo list is stored in `data/CorqueDB.db` as a SQLite database. It gets created automatically the first time you run Corque.
+
+## Project Structure (For Developers)
+
+If you're looking to modify or extend Corque, here's how the code is organized:
+
+```
+Corque-AI-agent/
+├── main.py                 # Entry point - starts the agent and handles the chat loop
+├── run.bat                 # Windows batch file to launch Corque easily
+│
+├── core/
+│   └── agent.py            # The main Agent class - sets up the LLM, tools, and handles requests
+│
+├── config/
+│   └── settings.py         # Configuration settings - loads env vars and sets defaults
+│
+├── tools/                  # All the tools the agent can use
+│   ├── __init__.py         # Exports all tools so they can be imported easily
+│   ├── emailTools.py       # Email sending and receiving functions
+│   ├── todoListTools.py    # Todo list CRUD operations (add, get, delete, change status)
+│   ├── weatherTools.py     # Weather lookup using wttr.in
+│   ├── timeTools.py        # Timezone conversion and date utilities
+│   └── webSearch.py        # Web search using Tavily API
+│
+└── data/
+    └── CorqueDB.db         # SQLite database for storing todos (auto-created)
+```
+
+**Key files to know:**
+
+- `main.py`: This is where everything starts. It initializes the todo database and creates the Agent instance, then runs a simple input loop.
+- `core/agent.py`: The heart of the system. This is where the LangChain agent is set up with all the tools, the system prompt, and the model configuration. It also handles the human-in-the-loop middleware for email approval.
+- `tools/`: Each tool file contains functions decorated with `@tool` from LangChain. These are what the agent can actually do. To add a new capability, create a new tool file here and add it to the tools list in `agent.py`.
+- `config/settings.py`: Centralized configuration. All environment variables are loaded here, and you can change defaults like the model name or number of threads.
+
+The tools are imported through `tools/__init__.py`, which makes it easy to add new ones - just add them to the imports there and they'll be available to the agent.
 
 ## Notes
 
