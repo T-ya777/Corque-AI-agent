@@ -34,12 +34,12 @@ You'll need a few things installed first:
    - `langgraph`
    - `python-dotenv`
    - `tzlocal`
-   - `tavily-python` (for web search)
+   - `tavily` (for web search)
    - Standard library stuff like `smtplib` and `imaplib` (usually already included)
 
    You can install them with:
    ```
-   pip install langchain langchain-ollama langgraph python-dotenv tzlocal tavily-python
+   pip install langchain langchain-ollama langgraph dotenv tzlocal tavily
    ```
 
 3. Set up your environment variables. Create a `.env` file in the project root with your email settings:
