@@ -32,7 +32,7 @@ You'll need a few things installed first:
    - `langchain`
    - `langchain-ollama`
    - `langgraph`
-   - `python-dotenv`
+   - `dotenv`
    - `tzlocal`
    - `tavily` (for web search)
    - Standard library stuff like `smtplib` and `imaplib` (usually already included)
