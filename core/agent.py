@@ -2,7 +2,7 @@ from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from config.settings import settings
-from tools import getWeather, sendEmail, getEmail, addTodo, getUTCNow, getTodoListinDaysFromNow, convertUTCEpochToISO, convertUTCToLocal, deleteTodo, getMostRecentTodo, changeTodoStatus, basicWebSearch
+from tools import getWeather, sendEmail, getEmail, addTodo, getUTCNow, getTodoListinDaysFromNow, convertUTCEpochToISO, convertUTCToLocal, deleteTodo, getMostRecentTodo, changeTodoStatus, basicWebSearch, dailyNewsSearch
 from langchain.agents.middleware import HumanInTheLoopMiddleware,LLMToolSelectorMiddleware
 from langgraph.types import Command
 from langchain_openai import ChatOpenAI
@@ -46,11 +46,32 @@ class Agent:
         Once you deliver the requested output, stop. Do not continue with extra suggestions unless asked.
         '''
         self.toolModelSystemPrompt = '''
-        You are a tool selector model for the agent.
-        You are given a task and a list of tools.
-        You need to select the most appropriate tool to use.
-        Do remember, the web search tool is only used when the user asks for information that is not available in your knowledge base, and task can not be done with other tools.
-        '''
+        You are a tool selector for an AI agent.
+
+        Your task is to select which tools are RELEVANT and ALLOWED for the given user request.
+        You do NOT execute tools.
+
+        Rules:
+
+        1. If the request can be completed using deterministic internal tools
+        (such as weather, time, email, todo, calculation),
+        DO NOT select any web search tools.
+
+        2. The news search tool is allowed ONLY when the user explicitly asks for:
+        - daily news
+        - latest headlines
+        - news about a specific topic or event
+
+        3. The general web search tool is a LAST RESORT.
+        Select it ONLY when:
+        - the information is not available via internal tools, AND
+        - the request is NOT about daily news or headlines.
+
+        4. Prefer the MINIMUM number of tools needed.
+        Do not select tools "just in case".
+
+        Select only tools that are strictly necessary for the request.
+'''
         self.tools = [
             getWeather,
             sendEmail,
@@ -63,7 +84,8 @@ class Agent:
             deleteTodo,
             getMostRecentTodo,
             changeTodoStatus,
-            basicWebSearch
+            basicWebSearch,
+            dailyNewsSearch,
         ]
         self.model = ChatOllama(
             model=settings.modelName,
@@ -71,25 +93,29 @@ class Agent:
             num_threads=settings.numOfThreads,
             num_gpu=99,
             num_ctx=8192,
+            num_predict=2048,
             keep_alive=-1
         )
         # self.model = ChatOpenAI(
         #     model="gpt-5-nano",
         #     api_key=settings.apiKey
         # )
-        self.toolModel = ChatOllama(
-            model=settings.toolModelName,
-            temperature=0,
-            num_threads=settings.numOfThreads,
-            num_ctx=256,
-            keep_alive="5m"
+        # self.toolModel = ChatOllama(
+        #     model=settings.toolModelName,
+        #     temperature=0,
+        #     num_threads=settings.numOfThreads,
+        #     num_ctx=256,
+        #     keep_alive="5m"
 
-        )
+        # )
         self.agent = create_agent(self.model, tools=self.tools, checkpointer=InMemorySaver(), system_prompt=self.systemPrompt,
         middleware = [HumanInTheLoopMiddleware(
             interrupt_on={'sendEmail':True},
             description_prefix="Tool execution pending approval"
-        ), LLMToolSelectorMiddleware(model=self.toolModel,system_prompt=self.toolModelSystemPrompt)])
+        ),
+                # LLMToolSelectorMiddleware(model=self.toolModel,system_prompt=self.toolModelSystemPrompt)
+                
+                ])
         
     def ask(self,query: str,threadId = 1):
         startTime = time.time()

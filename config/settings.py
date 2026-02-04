@@ -13,7 +13,7 @@ class Settings:
         self.emailPass = os.getenv('OTS_EMAIL_PASS')
         self.smtpServer = os.getenv('OTS_SMTP_SERVER')
         self.imapServer = os.getenv('OTS_IMAP_SERVER')
-        self.modelName = 'qwen3:8b'
+        self.modelName = "gpt-oss:120b-cloud"#'qwen3:8b'
         self.toolModelName = 'qwen3:0.6b'
         self.apiKey = os.getenv('OPENAI_API_KEY')
         self.dataBasePath = baseDir / 'data' / 'CorqueDB.db'
