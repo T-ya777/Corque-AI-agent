@@ -2,7 +2,7 @@ from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from config.settings import settings
-from tools import getWeather, sendEmail, getUnReademail, addTodo, getUTCNow, getTodoListinDaysFromNow, convertUTCEpochToISO, convertUTCToLocal, deleteTodo, getMostRecentTodo, changeTodoStatus, basicWebSearch, dailyNewsSearch, load_skill
+from tools import getWeather, sendEmail, getUnReademail, addTodo, getUTCNow, getTodoListinDaysFromNow, convertUTCEpochToISO, convertUTCToLocal, deleteTodo, getMostRecentTodo, changeTodoStatus, basicWebSearch, dailyNewsSearch, load_skill, generateCode
 from langchain.agents.middleware import HumanInTheLoopMiddleware,LLMToolSelectorMiddleware
 from langgraph.types import Command
 from langchain_openai import ChatOpenAI
@@ -87,6 +87,8 @@ class Agent:
             changeTodoStatus,
             basicWebSearch,
             dailyNewsSearch,
+            generateCode,
+            load_skill
         ]
         self.model = ChatOllama(
             model=settings.modelName,

@@ -1,8 +1,12 @@
 from langchain_ollama import ChatOllama
-from langchain.agents import create_agent
-from langchain_core.tools import tool
-from langgraph.checkpoint.memory import InMemorySaver
+import os
+import re
+import subprocess
+import tempfile
+from typing import Dict, List, Tuple
 from config.settings import settings
+from langchain_core.tools import tool
+
 
 coding_prompt = """
 # Role
@@ -53,10 +57,10 @@ Your code must be clean, secure, and performant.
 4.  Final Review -> Ensure no missing imports or syntax errors.
 """
 
-model = ChatOllama(model="minimax-m2.1:cloud",temperature=0.1,keep_alive="5m")
+
 
 @tool
-def generateCode(code_request: str) -> str:
+def generateCode(code_request: str, max_attempts: int = 5) -> Dict[str, str]:
     """
     This tool is used to generate code based on the code_request.
     What you need to do is to generate appropriate prompt for the goal of user's request.
@@ -65,7 +69,265 @@ def generateCode(code_request: str) -> str:
     Args:
         code_request (str): The request for the code generation.
     Returns:
-        str: The what the code model returns
+        Dict[str, str]: Extracted code mapped by filename.
     """
-    model.invoke({"input": code_request})
-    return model.get_state()["output"]
+    if not code_request or not code_request.strip():
+        raise ValueError("code_request must be a non-empty string.")
+
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1.")
+
+    model = ChatOllama(model=settings.codingModelName, temperature=0.1, keep_alive="5m")
+    messages = [{"role": "system", "content": coding_prompt}, {"role": "user", "content": code_request}]
+
+    expected_files = _extract_requested_filenames(code_request)
+    expected_min_files = max(1, len(expected_files))
+
+    for attempt in range(1, max_attempts + 1):
+        response = model.invoke(messages)
+        ai_code = response.content or ""
+        extracted = parse_code_response(ai_code)
+        if not extracted:
+            fallback_name = _detect_default_filename(ai_code)
+            extracted = {fallback_name: ai_code.strip()}
+
+        validation_ok, validation_errors = _validate_generated_files(
+            extracted,
+            expected_files,
+            expected_min_files,
+        )
+        if not validation_ok:
+            if attempt < max_attempts:
+                feedback = (
+                    "The generated output did not meet the required file format. "
+                    "Please fix the issues and return corrected code in the exact same "
+                    "format (### filename + fenced code blocks).\n\n"
+                    f"{validation_errors}"
+                )
+                messages.append({"role": "assistant", "content": ai_code})
+                messages.append({"role": "user", "content": feedback})
+                continue
+
+        ruff_ok, ruff_errors = _run_ruff_check(extracted)
+        if ruff_ok and validation_ok:
+            return extracted
+
+        if attempt < max_attempts:
+            feedback = (
+                "The generated code has Ruff lint issues. "
+                "Please fix the following errors and return corrected code "
+                "in the exact same format (### filename + fenced code blocks).\n\n"
+                f"{ruff_errors}"
+            )
+            messages.append({"role": "assistant", "content": ai_code})
+            messages.append({"role": "user", "content": feedback})
+
+    extracted["_warning"] = (
+        "Code generation did not pass validation or Ruff checks after "
+        f"{max_attempts} attempts. Output may contain lint errors."
+    )
+    return extracted
+
+def parse_code_response(raw_response: str) -> Dict[str, str]:
+    """
+    解析 LLM 返回的多文件代码字符串。
+    
+    Expected Format:
+    ### main.py
+    ```python
+    print('hello')
+    ```
+    
+    ### utils.py
+    ```python
+    def add(a, b): return a + b
+    ```
+    
+    Returns:
+        Dict[str, str]: {'main.py': "print('hello')", 'utils.py': "..."}
+    """
+    
+    files = {}
+    
+    # 1. 预处理：即使模型很乖，也要防一手它在 ### 前面加了废话
+    # 我们用正则找 ### filename，支持常见的文件扩展名
+    # Pattern 解释:
+    # ^\s*###\s+       -> 行首(允许空格) + ### + 至少一个空格
+    # ([\w\-\./]+)     -> 捕获文件名 (字母, 数字, -, ., /)
+    pattern = re.compile(r"^\s*###\s+([\w\-\./]+)", re.MULTILINE)
+    
+    # 找出所有分割点
+    matches = list(pattern.finditer(raw_response))
+    
+    # Case A: 单文件 (没有 ### 分割)
+    if not matches:
+        # 如果没找到 ###，假设整个回复就是一个单文件代码
+        # 尝试提取 markdown 块，如果没有 markdown 块，就返回原始内容
+        content = _strip_markdown(raw_response)
+        # 默认给个名字，或者根据内容猜测
+        default_name = _detect_default_filename(raw_response)
+        return {default_name: content}
+
+    # Case B: 多文件
+    for i, match in enumerate(matches):
+        filename = match.group(1).strip()
+        start_pos = match.end()
+        
+        # 结束位置是下一个 ### 的开始，或者是字符串末尾
+        if i + 1 < len(matches):
+            end_pos = matches[i + 1].start()
+        else:
+            end_pos = len(raw_response)
+            
+        # 提取内容
+        code_block = raw_response[start_pos:end_pos]
+        
+        # 清理 Markdown 标记 (```python ... ```)
+        clean_code = _strip_markdown(code_block)
+        
+        if clean_code:
+            files[filename] = clean_code
+
+    return files
+
+def _strip_markdown(text: str) -> str:
+    """Remove Markdown code block markers and leading/trailing whitespace."""
+    text = text.strip()
+
+    code_blocks = re.findall(r"```(?:[\w+-]+)?\s*(.*?)```", text, flags=re.DOTALL)
+    if code_blocks:
+        return "\n\n".join(block.strip() for block in code_blocks if block.strip())
+
+    text = re.sub(r"^\s*```[\w+-]*\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s*```\s*$", "", text)
+    return text.strip()
+
+
+def _detect_default_filename(raw_response: str) -> str:
+    """Guess default filename based on code block language or content."""
+    language_match = re.search(r"```([\w+-]+)", raw_response or "")
+    if not language_match:
+        return "main.txt"
+
+    language = language_match.group(1).lower()
+    extension_map = {
+        "python": "py",
+        "py": "py",
+        "typescript": "ts",
+        "ts": "ts",
+        "tsx": "tsx",
+        "javascript": "js",
+        "js": "js",
+        "jsx": "jsx",
+        "go": "go",
+        "golang": "go",
+        "java": "java",
+        "c": "c",
+        "cpp": "cpp",
+        "cxx": "cpp",
+        "cs": "cs",
+        "csharp": "cs",
+        "html": "html",
+        "css": "css",
+        "sql": "sql",
+        "bash": "sh",
+        "shell": "sh",
+        "sh": "sh",
+        "json": "json",
+        "yaml": "yaml",
+        "yml": "yml",
+        "markdown": "md",
+        "md": "md",
+    }
+    extension = extension_map.get(language, "txt")
+    return f"main.{extension}"
+
+
+def _extract_requested_filenames(code_request: str) -> List[str]:
+    """Try to detect explicit filenames requested by the user."""
+    if not code_request:
+        return []
+    pattern = re.compile(
+        r"\b[\w\-/]+\.(py|js|ts|tsx|jsx|html|css|go|java|json|yaml|yml|md)\b",
+        re.IGNORECASE,
+    )
+    full_matches = re.findall(
+        r"\b[\w\-/]+\.(?:py|js|ts|tsx|jsx|html|css|go|java|json|yaml|yml|md)\b",
+        code_request,
+        flags=re.IGNORECASE,
+    )
+    return [match for match in full_matches]
+
+
+def _validate_generated_files(
+    files: Dict[str, str],
+    expected_files: List[str],
+    expected_min_files: int,
+) -> Tuple[bool, str]:
+    """Validate output formatting and required file count."""
+    errors = []
+    if len(files) < expected_min_files:
+        errors.append(
+            f"Expected at least {expected_min_files} files, but got {len(files)}."
+        )
+        if expected_files:
+            missing = [name for name in expected_files if name not in files]
+            if missing:
+                errors.append(f"Missing files: {', '.join(missing)}")
+
+    dangling_fences = [name for name, content in files.items() if "```" in content]
+    if dangling_fences:
+        errors.append(
+            "Found leftover markdown fences in files: " + ", ".join(dangling_fences)
+        )
+
+    return (len(errors) == 0, "\n".join(errors))
+
+
+def _run_ruff_check(files: Dict[str, str]) -> Tuple[bool, str]:
+    """Run Ruff on extracted Python files. Returns (ok, errors)."""
+    python_files = {name: content for name, content in files.items() if name.endswith(".py")}
+    if not python_files:
+        return True, ""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for filename, content in python_files.items():
+            safe_path = os.path.join(temp_dir, filename)
+            os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+            with open(safe_path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+
+        result = subprocess.run(
+            ["ruff", "check", temp_dir],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    if result.returncode == 0:
+        return True, ""
+
+    errors = (result.stdout or "").strip()
+    if result.stderr:
+        errors = f"{errors}\n{result.stderr.strip()}".strip()
+    return False, errors or "Ruff reported issues but did not return details."
+
+
+# # 1) Python 单文件：应通过 ruff
+# print(generateCode("Write a Python function to compute Fibonacci with type hints and docstring."))
+
+# # 2) Python 多文件：应通过 ruff
+# print(generateCode(
+#     "Create a small Python package with two files: main.py and utils.py. "
+#     "main.py should call utils.add(a, b). Use type hints and no unused imports."
+# ))
+
+# # 3) 故意触发 ruff（未使用变量）
+# print(generateCode(
+#     "Write a Python script that defines an unused variable 'x = 1' and prints 'ok'."
+# ))
+
+# # 4) 非 Python：ruff 跳过（应直接返回）
+# print(generateCode(
+#     "Generate a simple HTML page with a centered button and basic CSS."
+# ))
