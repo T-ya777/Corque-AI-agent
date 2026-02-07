@@ -5,4 +5,4 @@ from .timeTools import getUTCNow, convertISOToUTCEpoch, convertUTCEpochToISO, co
 from .webSearch import basicWebSearch
 from .newsTools import dailyNewsSearch
 from .loadskillTools import load_skill
-from .codeGenTools import generateCode
+from .codeGenTools import generateCode, runCode

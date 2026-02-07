@@ -20,5 +20,6 @@ class Settings:
         self.localTimeZone = str(get_localzone())
         self.numOfThreads = os.cpu_count()
         self.tavilyApiKey = os.getenv('TAVILY_API_KEY')
+        self.workspaceDir = baseDir / 'workspace'
 
 settings = Settings()
