@@ -1,2 +1,4 @@
 .env
 data/
+node_modules/
+corque-ui/node_modules/

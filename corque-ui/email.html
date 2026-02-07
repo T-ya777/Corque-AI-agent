@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            padding: 20px;
+            font-family: -apple-system, sans-serif;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .field {
+            margin-bottom: 15px;
+        }
+        
+        .field-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .field-value {
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 14px;
+            min-height: 40px;
+        }
+        
+        .field-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .field-input.body {
+            min-height: 150px;
+            resize: vertical;
+        }
+        
+        .body-value {
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .actions {
+            margin-top: auto;
+            display: flex;
+            gap: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn.primary {
+            background: #007AFF;
+            color: white;
+            border: none;
+        }
+        
+        .send-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        .send-btn {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .schedule-dropdown {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            min-width: 150px;
+        }
+        
+        .schedule-dropdown.show {
+            display: block;
+        }
+        
+        .schedule-option {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .schedule-option:hover {
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">Email</div>
+    
+    <div class="field">
+        <div class="field-label">Subject</div>
+        <div class="field-value" id="subject-display">Meeting Follow-up</div>
+        <input class="field-input" id="subject-input" style="display:none;">
+    </div>
+    
+    <div class="field">
+        <div class="field-label">To</div>
+        <div class="field-value" id="to-display">john@example.com</div>
+        <input class="field-input" id="to-input" style="display:none;">
+    </div>
+    
+    <div class="field">
+        <div class="field-label">Body</div>
+        <div class="field-value body-value" id="body-display">Hi John,
+
+Thank you for the productive meeting today. As discussed, I'll send over the project timeline by end of week.
+
+Best regards</div>
+        <textarea class="field-input body" id="body-input" style="display:none;"></textarea>
+    </div>
+    
+    <div class="actions" id="view-actions">
+        <button class="btn" onclick="cancel()">Close</button>
+        <button class="btn" onclick="reject()">Reject</button>
+        <button class="btn" onclick="edit()">Edit</button>
+        <button class="btn primary" onclick="send()">Send</button>
+    </div>
+    
+    <div class="actions" id="edit-actions" style="display:none;">
+        <button class="btn" onclick="cancelEdit()">Cancel</button>
+        <button class="btn primary" onclick="done()">Done</button>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+        let isEditing = false;
+        let currentActionId = null;
+        let currentChatId = null;
+        
+        function edit() {
+            isEditing = true;
+            document.getElementById('subject-input').value = document.getElementById('subject-display').textContent;
+            document.getElementById('to-input').value = document.getElementById('to-display').textContent;
+            document.getElementById('body-input').value = document.getElementById('body-display').textContent;
+            
+            document.querySelectorAll('.field-value').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.field-input').forEach(el => el.style.display = 'block');
+            
+            document.getElementById('view-actions').style.display = 'none';
+            document.getElementById('edit-actions').style.display = 'flex';
+        }
+        
+        function done() {
+            document.getElementById('subject-display').textContent = document.getElementById('subject-input').value;
+            document.getElementById('to-display').textContent = document.getElementById('to-input').value;
+            document.getElementById('body-display').textContent = document.getElementById('body-input').value;
+            
+            cancelEdit();
+        }
+        
+        function cancelEdit() {
+            isEditing = false;
+            document.querySelectorAll('.field-value').forEach(el => el.style.display = 'block');
+            document.querySelectorAll('.field-input').forEach(el => el.style.display = 'none');
+            
+            document.getElementById('edit-actions').style.display = 'none';
+            document.getElementById('view-actions').style.display = 'flex';
+        }
+        
+        function cancel() {
+            window.parent.postMessage({ action: 'closeEmail' }, '*');
+        }
+
+        async function approveAction() {
+            const response = await fetch(`${API_BASE}/action/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ actionId: currentActionId })
+            });
+            const data = await response.json();
+            window.parent.postMessage({ action: 'emailResolved', reply: data.reply }, '*');
+        }
+
+        async function editAction(args) {
+            const response = await fetch(`${API_BASE}/action/edit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ actionId: currentActionId, args })
+            });
+            const data = await response.json();
+            window.parent.postMessage({ action: 'emailResolved', reply: data.reply }, '*');
+        }
+
+        async function reject() {
+            const response = await fetch(`${API_BASE}/action/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ actionId: currentActionId })
+            });
+            const data = await response.json();
+            window.parent.postMessage({ action: 'emailResolved', reply: data.reply }, '*');
+        }
+
+        function send() {
+            const args = {
+                recipientEmail: document.getElementById('to-display').textContent,
+                subject: document.getElementById('subject-display').textContent,
+                body: document.getElementById('body-display').textContent
+            };
+            if (isEditing) {
+                done();
+                editAction(args);
+            } else {
+                approveAction();
+            }
+        }
+
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.action === 'loadEmail') {
+                currentActionId = e.data.pendingAction.id;
+                currentChatId = e.data.chatId;
+                const args = e.data.pendingAction.args || {};
+                document.getElementById('subject-display').textContent = args.subject || '';
+                document.getElementById('to-display').textContent = args.recipientEmail || '';
+                document.getElementById('body-display').textContent = args.body || '';
+                cancelEdit();
+            }
+        });
+    </script>
+</body>
+</html>

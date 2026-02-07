@@ -12,7 +12,7 @@ from langchain_core.tools import tool
 
 
 @tool
-def sendEmail(recipientEmail,subject,body,fromWho = 'XiangCheng Xu'):
+def sendEmail(recipientEmail,subject,body,fromWho = None):
     '''
     Sends an email to a specified recipient with a subject and message body. (向指定收件人发送电子邮件)
     If the email fails to send, return an error message.
@@ -25,16 +25,17 @@ def sendEmail(recipientEmail,subject,body,fromWho = 'XiangCheng Xu'):
                     This argument is required.
         body (str): The main content or message of the email. 
                     This argument is required. A greeting may be included at the beginning of the body.
-        fromWho (str): The name of the sender. Default is 'XiangCheng Xu'.
+        fromWho (str): Optional sender name override.
 
     Returns:
         str: A confirmation message if the email is sent successfully, or an error message otherwise.
     '''
     
     numOfRetries = 3
+    sender = settings.senderName or settings.userName or fromWho or settings.emailUser or 'Corque'
     for i in range(numOfRetries):
         try:
-            fullBody = body.rstrip() + f"\n\nBest regards,\n{fromWho}"
+            fullBody = body.rstrip() + f"\n\nBest regards,\n{sender}"
             MSG = MIMEText(fullBody)
             MSG['Subject'] = subject
             MSG['From'] = settings.emailUser

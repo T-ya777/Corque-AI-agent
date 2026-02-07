@@ -1,0 +1,12 @@
+{
+  "recent": [
+    {"id": "1", "name": "Weather", "desc": "Check current weather conditions", "downloaded": false, "favorited": false}
+  ],
+  "tools": [
+    {"id": "2", "name": "Calendar", "desc": "View and manage your schedule", "downloaded": true, "favorited": false},
+    {"id": "3", "name": "Email", "desc": "Send and read emails quickly", "downloaded": false, "favorited": true}
+  ],
+  "skills": [
+    {"id": "4", "name": "Translation", "desc": "Translate text between languages", "downloaded": false, "favorited": false}
+  ]
+}

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from config.settings import settings
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -126,15 +127,16 @@ def convertUTCToLocal(utcISOTimeString: str, localTimeZone: str = None) -> str:
             dt_utc = dt_utc.astimezone(timezone.utc)
         
         # Convert to local timezone
-        if localTimeZone:
+        tz_value = localTimeZone or settings.localTimeZone
+        if tz_value:
             # Use specified timezone
             if ZoneInfo is None:
                 return 'Error: zoneinfo module not available. Please install backports.zoneinfo or use Python 3.9+.'
             
             try:
-                local_tz = ZoneInfo(localTimeZone)
+                local_tz = ZoneInfo(tz_value)
             except Exception as e:
-                return f'Error: Invalid timezone name "{localTimeZone}". {str(e)}'
+                return f'Error: Invalid timezone name "{tz_value}". {str(e)}'
         else:
             # Use system's local timezone
             local_tz = datetime.now().astimezone().tzinfo

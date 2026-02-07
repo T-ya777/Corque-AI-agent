@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            padding: 15px;
+            background: white;
+            font-family: -apple-system, sans-serif;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            grid-template-rows: auto auto;
+            gap: 10px;
+            margin-top: 10px;     /* 距顶部 */
+            margin-right: 20px;   /* 距右边 */
+            padding-bottom: 15px;  /* 距下方 */
+        }
+        
+        .title {
+            grid-column: 2;
+            grid-row: 1;
+            font-size: 30px;
+            font-weight: 600;
+            margin-top: 0px;     /* 距顶部 */
+            margin-right: 680px;   /* 距右边 */
+            text-align: left;
+        }
+        
+        .close-btn {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        
+        .controls {
+            grid-column: 1 / 3;
+            grid-row: 2;
+            display: flex;
+            gap: 10px;
+        }
+        
+        select {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        input {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        #history-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        
+        #history-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #history-list::-webkit-scrollbar-thumb {
+            background: #ddd;
+            border-radius: 3px;
+        }
+        
+        .chat-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        
+        .chat-item:hover {
+            background: #f9f9f9;
+        }
+        
+        .chat-time {
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 4px;
+        }
+        
+        .chat-preview {
+            font-size: 13px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">History</div>
+        <div class="controls">
+            <select id="conversation-filter">
+                <option value="all">All Conversations</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+            </select>
+            <input type="text" id="search" placeholder="Search...">
+        </div>
+    </div>
+    
+    <div id="history-list"></div>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+
+        async function waitForBackend(retries = 15, delayMs = 200) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(`${API_BASE}/health`);
+                    if (res.ok) return true;
+                } catch (err) {
+                    // ignore and retry
+                }
+                await new Promise(r => setTimeout(r, delayMs));
+            }
+            return false;
+        }
+
+        async function loadHistory() {
+            const list = document.getElementById('history-list');
+            const ready = await waitForBackend();
+            if (!ready) {
+                list.innerHTML = '<div class="chat-item">Backend not ready.</div>';
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/history`);
+                const data = await response.json();
+                if (!Array.isArray(data) || data.length === 0) {
+                    list.innerHTML = '<div class="chat-item">No history yet.</div>';
+                    return;
+                }
+                list.innerHTML = data.map(chat => `
+                    <div class="chat-item" onclick="openChat('${chat.id}')">
+                        <div class="chat-time">${chat.time}</div>
+                        <div class="chat-preview">${chat.preview}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                list.innerHTML = '<div class="chat-item">Failed to load history.</div>';
+                console.error(err);
+            }
+        }
+        
+        function openChat(id) {
+            window.parent.postMessage({
+                action: 'openChat',
+                chatId: id
+            }, '*');
+        }
+        
+        document.getElementById('search').oninput = (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.chat-item').forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(term) ? 'block' : 'none';
+            });
+        };
+        
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.action === 'reloadHistory') {
+                loadHistory();
+            }
+        });
+
+        loadHistory();
+    </script>
+</body>
+</html>

@@ -15,11 +15,28 @@ class Settings:
         self.imapServer = os.getenv('IMAP_SERVER')
         self.modelName = "gpt-oss:120b-cloud"#'qwen3:8b'
         self.codingModelName = 'minimax-m2.1:cloud'
-        self.apiKey = os.getenv('OPENAI_API_KEY')
+        self.apiKey = os.getenv('DEDALUS_API_KEY')
         self.dataBasePath = baseDir / 'data' / 'CorqueDB.db'
         self.localTimeZone = str(get_localzone())
+        self.senderName = os.getenv('SENDER_NAME') or ''
+        self.userName = os.getenv('USER_NAME') or ''
+        self.region = os.getenv('REGION') or ''
         self.numOfThreads = os.cpu_count()
         self.tavilyApiKey = os.getenv('TAVILY_API_KEY')
         self.workspaceDir = baseDir / 'workspace'
+
+    def apply_overrides(self, overrides: dict) -> None:
+        if not overrides:
+            return
+        if overrides.get('model'):
+            self.modelName = overrides['model']
+        if overrides.get('timezone'):
+            self.localTimeZone = overrides['timezone']
+        if overrides.get('senderName') is not None:
+            self.senderName = overrides['senderName']
+        if overrides.get('name') is not None:
+            self.userName = overrides['name']
+        if overrides.get('region') is not None:
+            self.region = overrides['region']
 
 settings = Settings()

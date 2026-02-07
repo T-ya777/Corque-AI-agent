@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: rgba(0, 0, 0, 0.01); /* keep transparent but clickable */
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+
+        #main-content {
+            display: none; /* 初始状态必须是隐藏 */
+            position: absolute;
+            /* ... 其他定位属性 ... */
+        }
+
+        /* 只有当父元素 container 有 .show 类时才显示 */
+        #container.show #main-content {
+            display: flex;
+        }
+
+        #container:not(.show) #tool-btn {
+            display: none !important;
+        }
+
+        #container:not(.show) #bubble-container {
+            display: none !important;
+        }
+
+        #container {
+            width: 100vw; height: 100vh;
+            position: relative;
+            background: rgba(0, 0, 0, 0.01); /* keep transparent but clickable */
+            pointer-events: auto;
+        }
+
+        /* --- 1. 图片容器定位 --- */
+        #cactus-core {
+            position: absolute;
+            left: 0px;
+            bottom: 20px;
+            width: 80px;
+            height: 140px;
+            z-index: 100;
+            background-image: url('cactus.png');  /* 你的图片路径 */
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center bottom;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* --- 2. 输入框对齐（未展开时隐藏，仅 .show 时显示）--- */
+        #input-section {
+            display: none ; /* 未展开时只显示仙人掌 */
+            position: absolute;
+            left: 30px;    /* 避开仙人掌 */
+            bottom: 20px;  /* 这里的数值要和仙人掌 body 的底部对齐 */
+            padding-left: 35px;
+            width: 690px;  
+            display: flex;
+            flex-direction: row;  /* 改回横向 */
+            align-items: center;  /* 垂直居中 */
+            min-height: 32px;
+            height: auto;
+
+            background: #f5f5f5; 
+            gap: 8px;
+            z-index: 60;
+
+            border: 2px solid #000000;
+            border-bottom: 1px solid #D3D3D3;  /* 浅灰色底边 */
+            border-radius: 8px 8px 0 0;  /* 上方圆角，下方直角 */
+        }
+
+        #input-section textarea {
+            flex: 1;
+            min-width: 0;
+            min-height: 32px;  /* textarea 最小高度 */
+            max-height: 200px;  /* 限制最大高度 */
+            height: auto;
+            padding: 12px;
+            background: transparent; border: none; outline: none;
+            resize: none; font-size: 14px; line-height: 1.5;
+        }
+
+        #container:not(.show) #input-section {
+            display: none !important;
+        }
+
+        /* --- 3. Action Bar 对齐（未展开时隐藏）--- */
+        #action-bar {
+            display: none;
+            position: absolute;
+            left: 20px;    /* 严格对准仙人掌 body 最左边 */
+            bottom: 0px;   /* 位于仙人掌下方 */
+            width: 700px; 
+
+
+            height: 30px;  /* 约为仙人掌 body(60) 的一半 */
+            background: #ffffe0;
+            border: 2px solid #000000;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0 8px;
+            padding-right: 60px;
+            z-index: 60;
+
+    
+            border-top: 2px solid #D3D3D3;  /* 顶部无边框（与输入框底边共用）*/
+            border-radius: 0 0 8px 8px;  /* 下方圆角 */
+
+            gap: 8px;
+            overflow-x: auto;  /* 添加 */
+        }
+
+        .history-btn, .settings-btn {
+            position: fixed;
+            right: 75px;  /* 历史记录 */
+            bottom: 0px;
+            width: 30px;
+            height: 30px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 16px;
+            border: none;
+        }
+
+        .settings-btn {
+            right:45px;  /* 设置按钮 */
+        }
+
+
+        .action-shortcut {
+            flex-shrink: 0;
+            padding: 3px 12px;
+            background: #ffe7e7;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            min-height: 20px;
+        }
+
+        .action-shortcut:hover {
+            background: #e0e0e0;
+        }
+
+        /* 状态切换：只有展开时才显示输入区和 action-bar */
+        #container.show #input-section,
+        #container.show #action-bar {
+            display: flex;
+        }
+
+        #action-bar::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        /* 内部小零件 */
+        #chat-select { font-size: 14px; color: #666; cursor: pointer; }
+        #send-btn { 
+            width: 28px; 
+            height: 28px; 
+            background: #29312b; color: white; 
+            border: none; border-radius: 4px; cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        #chat-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 150px;
+            z-index: 200;
+        }
+
+        #chat-dropdown.show {
+            display: block;
+        }
+
+        .chat-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .chat-option:hover {
+            background: #f5f5f5;
+        }
+
+        #tool-btn {
+            display: none;
+            position: absolute;
+            right: 40px;
+            bottom: 80px;
+            width: 43px;
+            height: 40px;
+            background: #FFD700;
+            border: 2px solid #FFD700;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            z-index: 30;
+        }
+
+        #container.show #tool-btn {
+            display: block;
+        }
+
+        #tool-panel {
+            display: block;  /* 保持 block */
+            height: 0;       /* 用高度控制显示 */
+            position: absolute;
+            left: 50px;
+            bottom: 60px;
+            width: 670px;
+            background: rgb(255, 255, 255);;
+            border: none;
+            border-radius: 12px 12px 0 0;
+            overflow: hidden;
+            transition: height 0.3s;
+            z-index: 0;
+        }
+
+        #tool-panel.open {
+            height: 600px;
+            width: 670px;
+            z-index: 0;
+            border: 2px solid #a8a69e;  /* 打开时才显示边框 */
+        }
+
+        #tool-panel iframe {
+            width: 670px;
+            height: calc(100% - 50px);
+            border: none;
+        }
+
+        #close-tool {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            width: 40px;
+            height: 40px;
+            background: #FFD700;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+
+        .bottom-controls {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            align-self: flex-end;
+            padding: 4px 8px 16px 0;
+        }
+
+        #bubble-container {
+            left: 50px;
+            bottom: 130px;  /* 仙人掌上方 */
+            position: absolute;
+        }
+
+        .bubble {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 700px;
+            min-height: 30px;
+            padding: 10px 14px;
+            position: relative;
+            margin-top: -100px;
+            margin-left: 0px;
+            z-index: 100;
+        }
+
+        /* 单行 = 胶囊形 */
+        .bubble.single-line {
+            border-radius: 20px;
+            padding-right: 50px; /* 留圆形位置 */
+            background: white;
+            border: 2px solid #000000;
+        }
+
+        /* 多行 = 圆角矩形 */
+        .bubble.multi-line {
+            border-radius: 12px;
+            background: white;
+            border: 2px solid #000000;
+        }
+
+        .bubble-tail {
+            position: fixed;
+            left: 60px;
+            bottom: 120px;
+            width: 0;
+            height: 0;
+            z-index: 110;
+            border-left: 20px solid #ffffff;
+            border-bottom: 20px solid transparent;
+        }
+
+        #container.show #bubble-container {
+            display: block;
+        }
+
+
+        /* 右侧圆形按钮 */
+        .bubble-action {
+            position: absolute;
+            bottom: 0px;
+            width: 36px;
+            height: 36px;
+            background: white;
+            border: 2px solid #FFD700;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            z-index: 100;
+        }
+
+        /* Y/N 按钮容器 */
+        .bubble-buttons {
+            position: fixed;
+            bottom: 105px;  /* 固定 Y */
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .bubble-btn {
+            width: 30px;
+            height: 15px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .bubble-btn.yes { background: #d4edda; }
+        .bubble-btn.no { background: #f8d7da; margin-left: 0;}
+
+
+        #history-panel {
+            display: block;
+            position: absolute;
+            left: 50px;
+            bottom: 0px;
+            width: 670px;
+            height: 0px;
+            background: white;
+            border: none;
+            border-radius: 12px 12px 0 0;
+            z-index: 50;
+            overflow: hidden;
+            transition: height 0.3s;
+        }
+
+        #history-panel.open {
+            height: 700px;
+            width: 670px;
+        }
+
+        #history-panel iframe {
+            width: 670px;
+            height: calc(100% - 50px);
+            border: none;
+        }
+
+        #close-history {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            width: 40px;
+            height: 40px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+/* 
+                .close-btn {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+        } */
+
+
+        #settings-panel {
+            display: block;
+            position: absolute;
+            left: 50px;
+            bottom: 0px;
+            width: 670px;
+            height: 0px;
+            background: white;
+            border: none;
+            border-radius: 12px 12px 0 0;
+            z-index: 50;
+            overflow: hidden;
+            transition: height 0.3s;
+        }
+
+        #settings-panel.open {
+            height: 700px;
+            width: 670px;
+        }
+
+        #settings-panel iframe {
+            width: 670px;
+            height: calc(100% - 50px);
+            border: none;
+        }
+
+        #email-panel {
+            position: absolute;
+            left: 50px;
+            bottom: 0px;
+            width: 670px;
+            height: 0px;
+            background: white;
+            border: none;
+            border-radius: 12px 12px 0 0;
+            z-index: 50;
+            overflow: hidden;
+            transition: height 0.3s;
+        }
+
+        #email-panel.open {
+            height: 500px;
+            border: 2px solid #FFD700;
+        }
+
+        #email-panel iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+    
+
+    </style>
+
+</head>
+<body>
+    <div id="container">
+        <div id="cactus-core">
+        </div>
+
+
+        <div id="input-section">
+            <textarea id="inp" placeholder="What do you want to ask today?..."></textarea>
+            <div class="bottom-controls">
+                <div id="chat-select">New Chat ⌄</div>
+                <button id="send-btn">↑</button>
+            </div>
+            <div id="chat-dropdown">
+                <div class="chat-option" onclick="selectChat('new')">New Chat</div>
+            </div>
+        </div>
+
+        <button id="tool-btn">⊞</button>
+
+        <div id="tool-panel">
+            <button id="close-tool">✕</button>
+            <iframe src="tools.html" frameborder="0"></iframe>
+        </div>
+
+        <div id="email-panel">
+            <iframe src="email.html" frameborder="0"></iframe>
+        </div>
+
+        
+        <div id="bubble-container"></div>
+        <div id="history-panel">
+            <button id="close-history">✕</button>
+            <iframe src="history.html" frameborder="0"></iframe>
+        </div>
+
+        <div id="settings-panel">
+            <iframe src="settings.html" frameborder="0"></iframe>
+        </div>
+
+        <div id="action-bar">
+            <button class="history-btn">🕐</button>
+            <button class="settings-btn">⚙️</button>
+        </div>
+    </div>
+
+   <script>
+    const { ipcRenderer } = require('electron');
+    const API_BASE = 'http://127.0.0.1:8000/api';
+    let currentChatId = null;
+
+
+    function testEmail() {
+        const panel = document.getElementById('email-panel');
+        if (panel) {
+            panel.classList.add('open');
+            console.log('Email panel opened');
+        } else {
+            console.error('找不到 email-panel 元素，请检查 HTML 里的 id 是否正确');
+        }
+    }
+
+    async function waitForBackend(retries = 20, delayMs = 300) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                if (res.ok) return true;
+            } catch (err) {
+                // ignore and retry
+            }
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+        return false;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        // --- 1. 获取所有元素 ---
+        const container = document.getElementById('container');
+        const inputEl = document.getElementById('inp');
+        const sendBtn = document.getElementById('send-btn');
+        const chatSelect = document.getElementById('chat-select');
+        const textarea = document.getElementById('inp');
+
+        // 【调试日志】如果控制台看到报错，请看这几行打印出的是什么
+        console.log('检查元素状态:', {
+            container: !!container,
+            inputEl: !!inputEl,
+            sendBtn: !!sendBtn,
+            chatSelect: !!chatSelect
+        });
+
+        // 在你的 input 监听器里
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto'; // 先重置，才能拿到真实的 scrollHeight
+            const contentHeight = this.scrollHeight;
+            this.style.height = contentHeight + 'px';
+
+            // 重点：计算窗口需要的新高度
+            // 窗口高度 = 文本高度 + 底部留白(40) + action-bar高度(30) + 顶部缓冲
+            const winHeight = contentHeight + 100; 
+        });
+
+        
+
+
+
+        const backendReady = await waitForBackend();
+        if (!backendReady) {
+            showBubble('Backend not ready. Please restart app.');
+        } else {
+            loadChatList();
+        }
+
+        // --- 2. 核心功能逻辑 ---
+
+        async function handleSend() {
+            const input = document.getElementById('inp');
+            if (!input) return;
+            
+            const text = input.value.trim();
+            if (!text) return;
+            
+            // 清空输入
+            input.value = '';
+
+            try {
+                if (!(await waitForBackend(5, 200))) {
+                    showBubble('Backend still starting. Try again.');
+                    return;
+                }
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, chatId: currentChatId })
+                });
+                const rawText = await response.text();
+                let data = null;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (err) {
+                    throw new Error(rawText || 'Request failed');
+                }
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Request failed');
+                }
+                currentChatId = data.chatId;
+                document.getElementById('bubble-container').innerHTML = '';
+                showBubble(data.reply || 'No response.');
+                await maybeOpenEmailPanel(data.pendingAction);
+                loadChatList();
+            } catch (err) {
+                document.getElementById('bubble-container').innerHTML = '';
+                showBubble(`Backend error: ${err.message || 'Please check the server.'}`);
+                console.error(err);
+            }
+        }
+
+
+        function toggle() {
+            ipcRenderer.send('toggle');
+        }
+
+        function showBubble(text, options = {}) {
+            const container = document.getElementById('bubble-container');
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            
+            // 判断单行/多行
+            const isSingleLine = text.length < 40; // 或用其他方式判断
+            bubble.classList.add(isSingleLine ? 'single-line' : 'multi-line');
+            
+            const textSpan = document.createElement('span');
+            textSpan.textContent = text;
+            bubble.appendChild(textSpan);
+
+            const tail = document.createElement('div');
+            tail.className = 'bubble-tail';
+            container.appendChild(tail);
+            
+            // 右侧圆形按钮（如挥手）
+            if (options.action) {
+                const actionBtn = document.createElement('div');
+                actionBtn.className = 'bubble-action';
+                actionBtn.textContent = options.action.emoji;
+                actionBtn.onclick = options.action.onClick;
+                
+                container.appendChild(actionBtn);
+                
+                // 气泡渲染后计算位置
+                setTimeout(() => {
+                    const bubbleRect = bubble.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    actionBtn.style.left = (bubbleRect.right - containerRect.left + 10) + 'px';
+                }, 0);
+            }
+            
+            // Y/N 按钮
+            if (options.needConfirm) {
+                const btnContainer = document.createElement('div');
+                btnContainer.className = 'bubble-buttons';
+                
+                const yesBtn = document.createElement('div');
+                yesBtn.className = 'bubble-btn yes';
+                yesBtn.textContent = '✓';
+                yesBtn.onclick = () => options.onConfirm(true);
+                
+                const noBtn = document.createElement('div');
+                noBtn.className = 'bubble-btn no';
+                noBtn.textContent = '✗';
+                noBtn.onclick = () => options.onConfirm(false);
+                
+                btnContainer.appendChild(yesBtn);
+                btnContainer.appendChild(noBtn);
+                container.appendChild(btnContainer);
+                
+                // 计算 X 位置
+                setTimeout(() => {
+                    const bubbleRect = bubble.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    btnContainer.style.left = (bubbleRect.left - containerRect.left + 100) + 'px';
+                }, 0);
+            }
+            
+            container.appendChild(bubble);
+            container.style.display = 'block';
+        }
+
+        // // 使用示例
+        // showBubble('早上好！', {
+        //     action: {
+        //         emoji: '👋',
+        //         onClick: () => {
+        //             document.getElementById('bubble-container').innerHTML = '';
+        //         }
+        //     }
+        // });
+
+        // showBubble('', {
+        //     needConfirm: true,
+        //     onConfirm: (yes) => {
+        //         console.log(yes ? '点了 Yes' : '点了 No');
+        //         document.getElementById('bubble-container').innerHTML = '';
+        //     }
+        // });
+
+
+        function reloadHistoryPanel() {
+            const historyFrame = document.querySelector('#history-panel iframe');
+            if (historyFrame && historyFrame.contentWindow) {
+                historyFrame.contentWindow.postMessage({ action: 'reloadHistory' }, '*');
+            }
+        }
+        
+        //tools------------------------------------
+        const toolBtn = document.getElementById('tool-btn');
+        const toolPanel = document.getElementById('tool-panel');
+        const closeTool = document.getElementById('close-tool');
+
+        if (toolBtn) {
+            toolBtn.onclick = () => {
+                toolPanel.classList.add('open');
+                toolBtn.style.display = 'none';
+            };
+        }
+
+        if (closeTool) {
+            closeTool.onclick = () => {
+                toolPanel.classList.remove('open');
+                toolBtn.style.display = 'block';
+            };
+        }
+
+
+        window.addEventListener('message', (e) => {
+            if (e.data.action === 'closeEmail') {
+                document.getElementById('email-panel').classList.remove('open');
+            } else if (e.data.action === 'sendEmail') {
+                console.log('Email sent:', e.data.data);
+                document.getElementById('email-panel').classList.remove('open');
+            }else if (e.data.action === 'closeSettings') {
+                document.getElementById('settings-panel').classList.remove('open');
+            } else if (e.data.action === 'emailResolved') {
+                document.getElementById('email-panel').classList.remove('open');
+                if (e.data.reply) {
+                    document.getElementById('bubble-container').innerHTML = '';
+                    showBubble(e.data.reply);
+                }
+            } else if (e.data.action === 'openChat') {
+                selectChat(e.data.chatId);
+            } else if (e.data.action === 'updateFavorites') {
+                const actionBar = document.getElementById('action-bar');
+                const item = e.data.item;
+                
+                if (item.favorited) {
+                    // 添加快捷方式
+                    const btn = document.createElement('div');
+                    btn.className = 'action-shortcut';
+                    btn.textContent = item.name;
+                    btn.dataset.id = item.id;
+                    btn.onclick = () => executeTool(item.id);
+                    actionBar.appendChild(btn);
+                } else {
+                    // 移除快捷方式
+                    const btn = actionBar.querySelector(`[data-id="${item.id}"]`);
+                    if (btn) btn.remove();
+                }
+            }
+        });
+
+        function executeTool(id) {
+            console.log('Execute tool:', id);
+            // 调用对应工具
+        }
+
+        // --- 3. 绑定事件 (使用安全检查) ---
+
+        // 发送按钮
+        if (sendBtn) {
+            sendBtn.onclick = (e) => {
+                e.stopPropagation();
+                handleSend();
+            };
+        }
+
+        // 切换键
+        if (chatSelect) {
+            chatSelect.onclick = (e) => {
+                e.stopPropagation();
+                console.log('📂 打开历史对话列表');
+            };
+        }
+
+        // 输入框回车
+        if (inputEl) {
+            inputEl.onkeypress = (e) => {
+                if (e.key === 'Enter') {
+                    handleSend();
+                }
+            };
+        }
+
+        // --- 4. 窗口交互 (双击与拖拽) ---
+
+        let isDragging = false;
+        let dragCandidate = false;
+        let dragStartX, dragStartY;
+
+        container.ondblclick = (e) => {
+            if (e.target.tagName !== 'TEXTAREA' && 
+                !e.target.closest('#send-btn') && 
+                !e.target.closest('#chat-select')) {
+                isDragging = false;
+                dragCandidate = false;
+                toggle();
+            }
+        };
+
+
+        container.onmousedown = (e) => {
+            // 只有点在背景或仙人掌图标上才允许拖拽
+            const canDrag = e.target.id === 'container' || 
+                           e.target.id === 'bg-bar' || 
+                           e.target.closest('#cactus-core');
+                           
+            if (canDrag) {
+                dragCandidate = true;
+                dragStartX = e.screenX;
+                dragStartY = e.screenY;
+                ipcRenderer.send('drag-start', { screenX: e.screenX, screenY: e.screenY });
+            }
+        };
+
+        document.onmousemove = (e) => {
+            if (!dragCandidate && !isDragging) return;
+            const deltaX = e.screenX - dragStartX;
+            const deltaY = e.screenY - dragStartY;
+            if (!isDragging) {
+                if (Math.abs(deltaX) + Math.abs(deltaY) < 3) return;
+                isDragging = true;
+            }
+            ipcRenderer.send('drag-move', { screenX: e.screenX, screenY: e.screenY });
+        };
+
+        document.onmouseup = () => {
+            isDragging = false;
+            dragCandidate = false;
+            ipcRenderer.send('drag-end');
+        };
+        
+        document.onmouseleave = () => {
+            isDragging = false;
+            dragCandidate = false;
+            ipcRenderer.send('drag-end');
+        };
+
+         //   ----- history---------
+
+         document.querySelector('.history-btn').onclick = () => {
+            document.getElementById('history-panel').classList.add('open');
+            reloadHistoryPanel();
+        };
+
+        document.getElementById('close-history').onclick = () => {
+            document.getElementById('history-panel').classList.remove('open');
+        };
+
+
+        const chatDropdown = document.getElementById('chat-dropdown');
+
+        if (chatSelect) {
+            chatSelect.onclick = (e) => {
+                e.stopPropagation();
+                chatDropdown.classList.toggle('show');
+                loadChatList();
+            };
+        }
+
+        document.addEventListener('click', () => {
+            chatDropdown.classList.remove('show');
+        });
+
+        async function loadChatList() {
+            const response = await fetch(`${API_BASE}/chats`);
+            const chats = await response.json();
+            
+            chatDropdown.innerHTML = '<div class="chat-option" onclick="selectChat(\'new\')">New Chat</div>' +
+                chats.map(chat => `<div class="chat-option" onclick="selectChat('${chat.id}')">${chat.title}</div>`).join('');
+        }
+
+        async function selectChat(id) {
+            console.log('Selected chat:', id);
+            chatDropdown.classList.remove('show');
+            if (id === 'new') {
+                currentChatId = null;
+                document.getElementById('bubble-container').innerHTML = '';
+                return;
+            }
+            currentChatId = id;
+            try {
+                const response = await fetch(`${API_BASE}/chat/${id}`);
+                const data = await response.json();
+                const lastAssistant = [...data.messages].reverse().find(m => m.role === 'assistant');
+                document.getElementById('bubble-container').innerHTML = '';
+                if (lastAssistant) {
+                    showBubble(lastAssistant.content);
+                }
+                await maybeOpenEmailPanel();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        window.selectChat = selectChat;
+
+        document.querySelector('.settings-btn').onclick = () => {
+            document.getElementById('settings-panel').classList.add('open');
+        };
+
+
+        // 测试触发
+
+
+        // --- 5. 状态接收 ---
+        async function maybeOpenEmailPanel(pendingAction) {
+            if (!currentChatId) return;
+            let action = pendingAction;
+            if (!action) {
+                try {
+                    const response = await fetch(`${API_BASE}/action/pending/${currentChatId}`);
+                    if (!response.ok) return;
+                    const text = await response.text();
+                    action = text ? JSON.parse(text) : null;
+                } catch (err) {
+                    action = null;
+                }
+            }
+            if (action && action.toolName === 'sendEmail') {
+                const panel = document.getElementById('email-panel');
+                const frame = panel.querySelector('iframe');
+                const payload = { action: 'loadEmail', chatId: currentChatId, pendingAction: action };
+                panel.classList.add('open');
+                if (frame.contentWindow) {
+                    frame.contentWindow.postMessage(payload, '*');
+                } else {
+                    frame.onload = () => frame.contentWindow.postMessage(payload, '*');
+                }
+            }
+        }
+
+        ipcRenderer.on('state', (e, exp) => {
+            isDragging = false;
+            dragCandidate = false;
+            ipcRenderer.send('drag-end');
+            if (exp) {
+                container.classList.add('show');
+                const input = document.getElementById('inp');
+                if(input) setTimeout(() => input.focus(), 150);
+                setTimeout(() => {
+                    const hour = new Date().getHours();
+                    const greeting = hour < 12 ? 'Good morning!' : hour < 18 ? 'Good afternoon!' : 'Good evening!';
+                    showBubble(greeting, {
+                        action: {
+                            emoji: '👋',
+                            onClick: () => {
+                                document.getElementById('bubble-container').innerHTML = '';
+                            }
+                        }
+                    });
+                }, 300);
+            } else {
+                container.classList.remove('show');
+                document.getElementById('bubble-container').innerHTML = '';
+                const toolPanel = document.getElementById('tool-panel');
+                const toolBtn = document.getElementById('tool-btn');
+                if (toolPanel) toolPanel.classList.remove('open');
+                if (toolBtn) toolBtn.style.display = 'block';
+            }
+        });
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "corque-cactus",
+  "version": "1.0.0",
+  "description": "Corque Cactus Assistant",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}

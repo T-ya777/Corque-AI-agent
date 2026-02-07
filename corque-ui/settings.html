@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            padding: 20px;
+            font-family: -apple-system, sans-serif;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;     /* 距顶部 */
+            margin-right: 20px;   /* 距右边 */
+            padding-bottom: 15px;  /* 距下方 */
+        }
+        
+        .title {
+            font-size: 30px;
+            font-weight: 600;
+        }
+        
+        
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .setting-label {
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .setting-input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            text-align: right;
+            min-width: 200px;
+        }
+        
+        .setting-input:focus {
+            outline: none;
+            border-color: #FFD700;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Settings</div>
+        <button class="close-btn" onclick="closeSettings()">✕</button>
+    </div>
+    
+    <div class="settings-list">
+        <div class="setting-item">
+            <div class="setting-label">Name</div>
+            <input class="setting-input" id="name" placeholder="Your name">
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">Model</div>
+            <input class="setting-input" id="model" placeholder="GPT-4">
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">Email</div>
+            <input class="setting-input" id="email" type="email" placeholder="user@example.com">
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">Email Sender Name</div>
+            <input class="setting-input" id="sender-name" placeholder="Sender name">
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">Region</div>
+            <input class="setting-input" id="region" placeholder="US">
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">Timezone</div>
+            <input class="setting-input" id="timezone" placeholder="UTC-8">
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+        async function loadSettings() {
+            const response = await fetch(`${API_BASE}/settings`);
+            const settings = await response.json();
+            
+            document.getElementById('name').value = settings.name || '';
+            document.getElementById('model').value = settings.model || '';
+            document.getElementById('email').value = settings.email || '';
+            document.getElementById('sender-name').value = settings.senderName || '';
+            document.getElementById('region').value = settings.region || '';
+            document.getElementById('timezone').value = settings.timezone || '';
+        }
+        
+        function closeSettings() {
+            window.parent.postMessage({ action: 'closeSettings' }, '*');
+        }
+        
+        document.querySelectorAll('.setting-input').forEach(input => {
+            input.addEventListener('change', async (e) => {
+                const field = e.target.id;
+                const value = e.target.value;
+                
+                await fetch(`${API_BASE}/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value })
+                });
+            });
+        });
+        
+        loadSettings();
+    </script>
+</body>
+</html>

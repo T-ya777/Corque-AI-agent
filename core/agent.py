@@ -91,43 +91,45 @@ class Agent:
             load_skill,
             runCode
         ]
-        self.model = ChatOllama(
-            model=settings.modelName,
-            temperature=0.2,
-            num_threads=settings.numOfThreads,
-            num_gpu=99,
-            num_predict=2048,
-            keep_alive=-1
-        )
-        # self.model = ChatOpenAI(
-        #     model="gpt-5-nano",
-        #     api_key=settings.apiKey
-        # )
-        # self.toolModel = ChatOllama(
-        #     model=settings.toolModelName,
-        #     temperature=0,
+        # self.model = ChatOllama(
+        #     model=settings.modelName,
+        #     temperature=0.2,
         #     num_threads=settings.numOfThreads,
-        #     num_ctx=256,
-        #     keep_alive="5m"
-
+        #     num_gpu=99,
+        #     num_predict=2048,
+        #     keep_alive=-1
         # )
+        self.model = ChatOpenAI(
+            model=settings.modelName,
+            api_key=settings.apiKey,
+            base_url="https://api.dedaluslabs.ai/v1"
+        )
         self.agent = create_agent(self.model, tools=self.tools, checkpointer=InMemorySaver(), system_prompt=self.systemPrompt,
         middleware = [HumanInTheLoopMiddleware(
             interrupt_on={'sendEmail':True},
             description_prefix="Tool execution pending approval"
         ),
                     skillMiddleware(),
-                # LLMToolSelectorMiddleware(model=self.toolModel,system_prompt=self.toolModelSystemPrompt)
                 
                 ])
         
-    def ask(self,query: str,threadId = 1):
+    def ask(self,query: str,threadId = 1, interactive: bool = True, return_interrupt: bool = False):
         startTime = time.time()
         config = {'configurable': {'thread_id': f'{threadId}'}}
         response = self.agent.invoke({'messages':[{'role':'user','content':query}]},config=config)
         endTime = time.time()
         print(f"Time taken: {endTime - startTime} seconds")
         if '__interrupt__' in response:
+            if not interactive:
+                interrupt = response['__interrupt__'][0]
+                value = interrupt.value
+                toolName = value['action_requests'][0]['name']
+                if return_interrupt:
+                    return {
+                        "reply": f"Action '{toolName}' needs approval before continuing.",
+                        "interrupt": value
+                    }
+                return f"Action '{toolName}' needs approval before continuing."
             print('Agent action is interrupted, needs human action to continue.')
             print('The reason is:')
             intr = response['__interrupt__']
@@ -213,3 +215,11 @@ class Agent:
                     print('The attempt to send the email is rejected.'+'\n')
                     return result2["messages"][-1].content
         return response["messages"][-1].content
+
+    def resume_action(self, threadId: int, decision: dict) -> str:
+        config = {'configurable': {'thread_id': f'{threadId}'}}
+        result = self.agent.invoke(
+            Command(resume={'decisions':[decision]}),
+            config=config
+        )
+        return result["messages"][-1].content

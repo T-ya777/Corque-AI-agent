@@ -13,6 +13,8 @@ Corque comes with a bunch of useful tools built right in:
 - **Web Search**: Look things up online when you need real-time information
 - **Daily News**: Pull the latest headlines on a topic
 - **Time Tools**: Handle timezone conversions and date calculations automatically
+- **Code Generation**: Generate code files into `workspace/` based on a detailed spec
+- **Run Code**: Execute scripts safely from the `workspace/` directory
 
 The best part? You just talk to it naturally. Ask it to "add a todo for tomorrow" or "what's the weather in New York?" and it figures out what to do.
 
@@ -25,6 +27,7 @@ You'll need a few things installed first:
 - Python 3.9 or higher
 - Ollama installed and running on your system
 - The `gpt-oss:120b-cloud` model (or you can change it in the config)
+- Node.js + npm (only if you want to run the Electron UI in `corque-ui/`)
 
 ### Installation
 
@@ -37,11 +40,16 @@ You'll need a few things installed first:
    - `python-dotenv`
    - `tzlocal`
    - `tavily-python` (for web search)
+   - `fastapi`, `uvicorn`, `pydantic` (for the API server/UI backend)
    - Standard library stuff like `smtplib` and `imaplib` (usually already included)
 
    You can install them with:
    ```
    pip install langchain langchain-ollama langgraph python-dotenv tzlocal tavily-python
+   ```
+   Or use the provided requirements file for the API server:
+   ```
+   pip install -r requirements.txt
    ```
 
 3. Set up your environment variables. Create a `.env` file in the project root with your email settings:
@@ -67,6 +75,16 @@ python main.py
 ```
 
 Once it starts, you'll see "Corque is ready to assist you!" and you can start chatting. Type `quit` when you're done.
+
+If you want to run the API server (used by the UI), start it with:
+```
+uvicorn api_server:app --host 127.0.0.1 --port 8000 --reload
+```
+
+To launch the Electron UI on Windows, use:
+```
+start.bat
+```
 
 ## How It Works
 
@@ -98,11 +116,19 @@ If you're looking to modify or extend Corque, here's how the code is organized:
 
 ```
 Corque-AI-agent/
+├── api_server.py           # FastAPI server for chat history, settings, and approvals
 ├── main.py                 # Entry point - starts the agent and handles the chat loop
 ├── run.bat                 # Windows batch file to launch Corque easily
+├── start.bat               # Windows batch file to launch the Electron UI
+├── requirements.txt        # Python deps for the API server
+├── LICENSE                 # Project license
 │
 ├── core/
-│   └── agent.py            # The main Agent class - sets up the LLM, tools, and handles requests
+│   ├── agent.py            # The main Agent class - sets up the LLM, tools, and handles requests
+│   └── skill_loader.py     # Loads markdown skills into structured objects
+│
+├── middleware/
+│   └── skill_middleware.py # Injects skill list into the system prompt
 │
 ├── config/
 │   └── settings.py         # Configuration settings - loads env vars and sets defaults
@@ -115,17 +141,38 @@ Corque-AI-agent/
 │   ├── timeTools.py        # Timezone conversion and date utilities
 │   ├── webSearch.py        # Web search using Tavily API
 │   └── newsTools.py        # Daily news search via Tavily
+│   ├── loadskillTools.py   # Loads a full skill into context on demand
+│   └── codeGenTools.py     # Code generation and workspace-safe execution
+│
+├── skills/                 # Markdown skills that can be loaded at runtime
+│   ├── coding_agent.md
+│   ├── skillArchitect.md
+│   └── toolArchitect.md
+│
+├── corque-ui/              # Electron-based desktop UI
+│   ├── main.js             # Electron main process (starts API server)
+│   ├── index.html          # Main UI shell
+│   ├── history.html        # Chat history view
+│   ├── settings.html       # Settings view
+│   ├── tools.html          # Tools/skills marketplace view
+│   └── tools-data.json     # Sample tool/skill metadata
 │
 ├── IMAPTesting.py          # Local IMAP test script (manual debugging helper)
 └── data/
     └── CorqueDB.db         # SQLite database for storing todos (auto-created)
+└── workspace/              # Generated code files live here (safe execution sandbox)
 ```
 
 **Key files to know:**
 
 - `main.py`: This is where everything starts. It initializes the todo database and creates the Agent instance, then runs a simple input loop.
 - `core/agent.py`: The heart of the system. This is where the LangChain agent is set up with all the tools, the system prompt, and the model configuration. It also handles the human-in-the-loop middleware for email approval.
+- `api_server.py`: FastAPI backend used by the Electron UI. Stores chats, messages, and pending approvals.
+- `core/skill_loader.py`: Reads markdown files from `skills/` and exposes them to the agent.
+- `middleware/skill_middleware.py`: Appends the skill list to the system prompt and enables `load_skill`.
 - `tools/`: Each tool file contains functions decorated with `@tool` from LangChain. These are what the agent can actually do. To add a new capability, create a new tool file here and add it to the tools list in `agent.py`.
+- `tools/codeGenTools.py`: Generates code into `workspace/` and optionally runs it in a sandboxed way.
+- `corque-ui/`: Electron desktop UI that talks to the API server.
 - `IMAPTesting.py`: A quick local script to verify IMAP settings during development.
 - `config/settings.py`: Centralized configuration. All environment variables are loaded here, and you can change defaults like the model name or number of threads.
 
