@@ -2,10 +2,11 @@ from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from config.settings import settings
-from tools import getWeather, sendEmail, getUnReademail, addTodo, getUTCNow, getTodoListinDaysFromNow, convertUTCEpochToISO, convertUTCToLocal, deleteTodo, getMostRecentTodo, changeTodoStatus, basicWebSearch, dailyNewsSearch
+from tools import getWeather, sendEmail, getUnReademail, addTodo, getUTCNow, getTodoListinDaysFromNow, convertUTCEpochToISO, convertUTCToLocal, deleteTodo, getMostRecentTodo, changeTodoStatus, basicWebSearch, dailyNewsSearch, load_skill
 from langchain.agents.middleware import HumanInTheLoopMiddleware,LLMToolSelectorMiddleware
 from langgraph.types import Command
 from langchain_openai import ChatOpenAI
+from middleware.skill_middleware import skillMiddleware
 import time
 
 class Agent:
@@ -92,7 +93,6 @@ class Agent:
             temperature=0.2,
             num_threads=settings.numOfThreads,
             num_gpu=99,
-            num_ctx=8192,
             num_predict=2048,
             keep_alive=-1
         )
@@ -113,6 +113,7 @@ class Agent:
             interrupt_on={'sendEmail':True},
             description_prefix="Tool execution pending approval"
         ),
+                    skillMiddleware(),
                 # LLMToolSelectorMiddleware(model=self.toolModel,system_prompt=self.toolModelSystemPrompt)
                 
                 ])

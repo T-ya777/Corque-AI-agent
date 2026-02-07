@@ -4,3 +4,4 @@ from .todoListTools import initTodoList, addTodo, getTodoListinDaysFromNow, dele
 from .timeTools import getUTCNow, convertISOToUTCEpoch, convertUTCEpochToISO, convertUTCToLocal
 from .webSearch import basicWebSearch
 from .newsTools import dailyNewsSearch
+from .loadskillTools import load_skill
