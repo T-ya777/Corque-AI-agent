@@ -174,18 +174,29 @@ def generateCode(code_request: str, max_attempts: int = 5) -> Dict[str, str]:
                 continue
 
         ruff_ok, ruff_errors = _run_ruff_check(extracted)
-        if ruff_ok and validation_ok:
+        semgrep_ok, semgrep_errors = _run_semgrep_check(extracted)
+        if ruff_ok and semgrep_ok and validation_ok:
             for filename,code in extracted.items():
                 saveCode(filename,code)
             return f"Successfully generated code and saved to workspace directory. The code is: {'\n'.join([f'{filename}: {code}' for filename, code in extracted.items()])}. The path of the saved code is: {'\n'.join([f'{filename}: {os.path.join(settings.workspaceDir, filename)}' for filename in extracted.keys()])}. You can now run the code using the runCode tool."
 
         if attempt < max_attempts:
-            feedback = (
-                "The generated code has Ruff lint issues. "
-                "Please fix the following errors and return corrected code "
-                "in the exact same format (### filename + fenced code blocks).\n\n"
-                f"{ruff_errors}"
-            )
+            feedback_parts = []
+            if not ruff_ok:
+                feedback_parts.append(
+                    "The generated Python code has Ruff lint issues. "
+                    "Please fix the following errors and return corrected code "
+                    "in the exact same format (### filename + fenced code blocks).\n\n"
+                    f"{ruff_errors}"
+                )
+            if not semgrep_ok:
+                feedback_parts.append(
+                    "The generated non-Python code has Semgrep lint issues. "
+                    "Please fix the following errors and return corrected code "
+                    "in the exact same format (### filename + fenced code blocks).\n\n"
+                    f"{semgrep_errors}"
+                )
+            feedback = "\n\n".join(part for part in feedback_parts if part)
             messages.append({"role": "assistant", "content": ai_code})
             messages.append({"role": "user", "content": feedback})
 
@@ -380,6 +391,36 @@ def _run_ruff_check(files: Dict[str, str]) -> Tuple[bool, str]:
     if result.stderr:
         errors = f"{errors}\n{result.stderr.strip()}".strip()
     return False, errors or "Ruff reported issues but did not return details."
+
+def _run_semgrep_check(files: Dict[str, str]) -> Tuple[bool, str]:
+    """Run Semgrep on non-Python files. Returns (ok, errors)."""
+    non_python_files = {
+        name: content for name, content in files.items() if not name.endswith(".py")
+    }
+    if not non_python_files:
+        return True, ""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for filename, content in non_python_files.items():
+            safe_path = os.path.join(temp_dir, filename)
+            os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+            with open(safe_path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+
+        result = subprocess.run(
+            ["semgrep", "--config", "auto", temp_dir],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    if result.returncode == 0:
+        return True, ""
+
+    errors = (result.stdout or "").strip()
+    if result.stderr:
+        errors = f"{errors}\n{result.stderr.strip()}".strip()
+    return False, errors or "Semgrep reported issues but did not return details."
 
 def saveCode(filename: str,code: str) -> Optional[str] :
     """
