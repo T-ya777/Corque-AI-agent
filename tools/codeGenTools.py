@@ -176,9 +176,20 @@ def generateCode(code_request: str, max_attempts: int = 5) -> Dict[str, str]:
         ruff_ok, ruff_errors = _run_ruff_check(extracted)
         semgrep_ok, semgrep_errors = _run_semgrep_check(extracted)
         if ruff_ok and semgrep_ok and validation_ok:
-            for filename,code in extracted.items():
-                saveCode(filename,code)
-            return f"Successfully generated code and saved to workspace directory. The code is: {'\n'.join([f'{filename}: {code}' for filename, code in extracted.items()])}. The path of the saved code is: {'\n'.join([f'{filename}: {os.path.join(settings.workspaceDir, filename)}' for filename in extracted.keys()])}. You can now run the code using the runCode tool."
+            saved_paths, failed_saves = _save_generated_files(extracted)
+            if failed_saves:
+                return (
+                    "Code generation succeeded, but some files failed to save. "
+                    f"Failures: {failed_saves}. "
+                    f"Saved files: {saved_paths}. "
+                    "Please check workspace permissions or invalid filenames."
+                )
+            return (
+                "Successfully generated code and saved to workspace directory. "
+                f"The code is: {'\n'.join([f'{filename}: {code}' for filename, code in extracted.items()])}. "
+                f"The path of the saved code is: {saved_paths}. "
+                "You can now run the code using the runCode tool."
+            )
 
         if attempt < max_attempts:
             feedback_parts = []
@@ -204,9 +215,20 @@ def generateCode(code_request: str, max_attempts: int = 5) -> Dict[str, str]:
     #     "Code generation did not pass validation or Ruff checks after "
     #     f"{max_attempts} attempts. Output may contain lint errors."
     # )
-    for filename,code in extracted.items():
-        saveCode(filename,code)
-    return f"Successfully generated code and saved to workspace directory but failed to pass validation or Ruff checks. The code is: {'\n'.join([f'{filename}: {code}' for filename, code in extracted.items()])}. The path of the saved code is: {'\n'.join([f'{filename}: {os.path.join(settings.workspaceDir, filename)}' for filename in extracted.keys()])}. You can now run the code using the runCode tool."
+    saved_paths, failed_saves = _save_generated_files(extracted)
+    if failed_saves:
+        return (
+            "Code generation finished but failed validation or lint checks, "
+            "and some files failed to save. "
+            f"Failures: {failed_saves}. Saved files: {saved_paths}."
+        )
+    return (
+        "Successfully generated code and saved to workspace directory but failed to pass "
+        "validation or lint checks. "
+        f"The code is: {'\n'.join([f'{filename}: {code}' for filename, code in extracted.items()])}. "
+        f"The path of the saved code is: {saved_paths}. "
+        "You can now run the code using the runCode tool."
+    )
 
 def parse_code_response(raw_response: str) -> Dict[str, str]:
     """
@@ -422,7 +444,7 @@ def _run_semgrep_check(files: Dict[str, str]) -> Tuple[bool, str]:
         errors = f"{errors}\n{result.stderr.strip()}".strip()
     return False, errors or "Semgrep reported issues but did not return details."
 
-def saveCode(filename: str,code: str) -> Optional[str] :
+def saveCode(filename: str, code: str) -> Optional[str]:
     """
     This tool is used to save the code to the code directory.
     Args:
@@ -433,13 +455,58 @@ def saveCode(filename: str,code: str) -> Optional[str] :
     """
     os.makedirs(settings.workspaceDir, exist_ok=True)
     try:
-        with open(os.path.join(settings.workspaceDir, filename), "w", encoding="utf-8") as handle:
+        normalized = _sanitize_filename(filename)
+        if not normalized:
+            print("Error saving code: invalid or empty filename.")
+            return None
+        if normalized.startswith("workspace/"):
+            normalized = normalized[len("workspace/"):]
+
+        target_path = os.path.join(settings.workspaceDir, normalized)
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        with open(target_path, "w", encoding="utf-8") as handle:
             handle.write(code)
-        print(f"Code saved to {os.path.join(settings.workspaceDir, filename)}")
-        return os.path.join(settings.workspaceDir, filename)
+        if not os.path.exists(target_path):
+            print(f"Error saving code: file not found after write: {target_path}")
+            return None
+        print(f"Code saved to {target_path}")
+        return target_path
     except Exception as e:
         print(f"Error saving code: {e}")
         return None
+
+
+def _save_generated_files(files: Dict[str, str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Save generated files and return (saved_paths, failed_saves)."""
+    saved_paths: Dict[str, str] = {}
+    failed_saves: Dict[str, str] = {}
+    for filename, code in files.items():
+        path = saveCode(filename, code)
+        if path:
+            saved_paths[filename] = path
+        else:
+            failed_saves[filename] = "Save failed or path invalid."
+    if failed_saves:
+        print(f"Save failures: {failed_saves}")
+    return saved_paths, failed_saves
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Sanitize filename for safe saving (Windows-compatible)."""
+    if not filename:
+        return ""
+    normalized = filename.replace("\\", "/").strip().lstrip("/")
+    if not normalized:
+        return ""
+
+    invalid_chars = '<>:"|?*'
+    parts = []
+    for part in normalized.split("/"):
+        clean = "".join(ch for ch in part if ch not in invalid_chars)
+        clean = clean.rstrip(". ").strip()
+        if clean:
+            parts.append(clean)
+    return "/".join(parts)
 
 # # 1) Python 单文件：应通过 ruff
 # print(generateCode("Write a Python function to compute Fibonacci with type hints and docstring."))

@@ -950,6 +950,10 @@
             document.getElementById('settings-panel').style.zIndex = '400';
             document.getElementById('tool-panel').style.zIndex = '300';
             document.getElementById('email-panel').style.zIndex = '300';
+            const settingsFrame = document.querySelector('#settings-panel iframe');
+            if (settingsFrame && settingsFrame.contentWindow) {
+                settingsFrame.contentWindow.postMessage({ action: 'reloadSettings' }, '*');
+            }
         };
 
         document.querySelector('.exit-btn').onclick = () => {

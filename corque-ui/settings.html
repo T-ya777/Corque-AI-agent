@@ -76,7 +76,7 @@
         
         <div class="setting-item">
             <div class="setting-label">Email Sender Name</div>
-            <input class="setting-input" id="sender-name" placeholder="Sender name">
+            <input class="setting-input" id="senderName" placeholder="Sender name">
         </div>
         
         <div class="setting-item">
@@ -99,7 +99,7 @@
             document.getElementById('name').value = settings.name || '';
             document.getElementById('model').value = settings.model || '';
             document.getElementById('email').value = settings.email || '';
-            document.getElementById('sender-name').value = settings.senderName || '';
+            document.getElementById('senderName').value = settings.senderName || '';
             document.getElementById('region').value = settings.region || '';
             document.getElementById('timezone').value = settings.timezone || '';
         }
@@ -112,15 +112,21 @@
             input.addEventListener('change', async (e) => {
                 const field = e.target.id;
                 const value = e.target.value;
-                
+                const payload = { [field]: value };
                 await fetch(`${API_BASE}/settings`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ [field]: value })
+                    body: JSON.stringify(payload)
                 });
             });
         });
         
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.action === 'reloadSettings') {
+                loadSettings();
+            }
+        });
+
         loadSettings();
     </script>
 </body>

@@ -91,19 +91,19 @@ class Agent:
             load_skill,
             runCode
         ]
-        # self.model = ChatOllama(
-        #     model=settings.modelName,
-        #     temperature=0.2,
-        #     num_threads=settings.numOfThreads,
-        #     num_gpu=99,
-        #     num_predict=2048,
-        #     keep_alive=-1
-        # )
-        self.model = ChatOpenAI(
+        self.model = ChatOllama(
             model=settings.modelName,
-            api_key=settings.apiKey,
-            base_url="https://api.dedaluslabs.ai/v1"
+            temperature=0.2,
+            num_threads=settings.numOfThreads,
+            num_gpu=99,
+            num_predict=2048,
+            keep_alive=-1
         )
+        # self.model = ChatOpenAI(
+        #     model=settings.modelName,
+        #     api_key=settings.apiKey,
+        #     base_url="https://api.dedaluslabs.ai/v1"
+        # )
         self.agent = create_agent(self.model, tools=self.tools, checkpointer=InMemorySaver(), system_prompt=self.systemPrompt,
         middleware = [HumanInTheLoopMiddleware(
             interrupt_on={'sendEmail':True},
