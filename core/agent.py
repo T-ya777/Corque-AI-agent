@@ -150,7 +150,8 @@ class Agent:
             model=settings.modelName,
             temperature=0.2,
             num_threads=settings.numOfThreads,
-            num_gpu=99
+            num_gpu=99,
+            keep_alive=-1
         )
         # self.model = ChatOpenAI(
         #     model=settings.modelName,
