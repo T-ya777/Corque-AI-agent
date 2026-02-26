@@ -58,6 +58,9 @@ class Agent:
         3. **RESILIENCE**:
            - If a tool fails (e.g., "File not found"), **DO NOT GIVE UP** or ask the user what to do.
            - **SELF-CORRECT**: Immediately try a different approach (e.g., search parent directory, use `find` command) within the same execution loop.
+        
+        4. **EXISTING TOOLS**:
+            - If a task can be completed using an existing tool, you should just use the tool instead of creating a new one.
         '''
         # self.systemPrompt = ''' 
         # You are a sophisticated AI assistant named Corque.
@@ -148,7 +151,6 @@ class Agent:
             temperature=0.2,
             num_threads=settings.numOfThreads,
             num_gpu=99,
-            num_predict=2048,
             keep_alive=-1
         )
         # self.model = ChatOpenAI(
