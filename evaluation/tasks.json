@@ -1,0 +1,165 @@
+[
+  {
+    "id": "parse_single_py",
+    "type": "python_assert",
+    "call": "parse_code_response",
+    "args": ["### main.py\n```python\nprint('ok')\n```"],
+    "assertions": [
+      {"op": "dict_has_key", "value": "main.py"},
+      {"op": "dict_value_contains", "key": "main.py", "value": "print('ok')"}
+    ]
+  },
+  {
+    "id": "parse_multi_files",
+    "type": "python_assert",
+    "call": "parse_code_response",
+    "args": ["### a.py\n```python\nA=1\n```\n### b.js\n```js\nconsole.log(1)\n```"],
+    "assertions": [
+      {"op": "dict_has_key", "value": "a.py"},
+      {"op": "dict_has_key", "value": "b.js"}
+    ]
+  },
+  {
+    "id": "strip_markdown",
+    "type": "python_assert",
+    "call": "_strip_markdown",
+    "args": ["```python\nprint(1)\n```"],
+    "assertions": [{"op": "contains", "value": "print(1)"}]
+  },
+  {
+    "id": "detect_default_py",
+    "type": "python_assert",
+    "call": "_detect_default_filename",
+    "args": ["```python\nprint(1)\n```"],
+    "assertions": [{"op": "equals", "value": "main.py"}]
+  },
+  {
+    "id": "detect_default_js",
+    "type": "python_assert",
+    "call": "_detect_default_filename",
+    "args": ["```javascript\nconsole.log(1)\n```"],
+    "assertions": [{"op": "equals", "value": "main.js"}]
+  },
+  {
+    "id": "extract_requested_files",
+    "type": "python_assert",
+    "call": "_extract_requested_filenames",
+    "args": ["Please generate api/main.py and ui/app.js"],
+    "assertions": [
+      {"op": "list_contains", "value": "api/main.py"},
+      {"op": "list_contains", "value": "ui/app.js"}
+    ]
+  },
+  {
+    "id": "validate_generated_pass",
+    "type": "python_assert",
+    "call": "_validate_generated_files",
+    "args": [{"main.py": "print(1)"}, ["main.py"], 1],
+    "assertions": [{"op": "tuple_first_equals", "value": true}]
+  },
+  {
+    "id": "validate_generated_fail_missing",
+    "type": "python_assert",
+    "call": "_validate_generated_files",
+    "args": [{"main.py": "print(1)"}, ["main.py", "utils.py"], 2],
+    "assertions": [{"op": "tuple_first_equals", "value": false}]
+  },
+  {
+    "id": "sanitize_filename_windows_chars",
+    "type": "python_assert",
+    "call": "_sanitize_filename",
+    "args": ["bad<name>|file?.py"],
+    "assertions": [{"op": "equals", "value": "badnamefile.py"}]
+  },
+  {
+    "id": "sanitize_filename_nested",
+    "type": "python_assert",
+    "call": "_sanitize_filename",
+    "args": ["folder/sub/main.py"],
+    "assertions": [{"op": "equals", "value": "folder/sub/main.py"}]
+  },
+  {
+    "id": "shell_allowlisted_echo",
+    "type": "python_assert",
+    "call": "runShellCommand",
+    "args": ["echo corque-eval"],
+    "assertions": [{"op": "contains", "value": "corque-eval"}]
+  },
+  {
+    "id": "shell_denylist_chain",
+    "type": "python_assert",
+    "call": "runShellCommand",
+    "args": ["echo ok && echo nope"],
+    "assertions": [{"op": "contains", "value": "blocked by denylist"}]
+  },
+  {
+    "id": "shell_not_allowlisted",
+    "type": "python_assert",
+    "call": "runShellCommand",
+    "args": ["ipconfig"],
+    "assertions": [{"op": "contains", "value": "not allowlisted"}]
+  },
+  {
+    "id": "shell_path_escape",
+    "type": "python_assert",
+    "call": "runShellCommand",
+    "args": ["echo hi", "..\\"],
+    "assertions": [{"op": "contains", "value": "outside the configured sandbox root"}]
+  },
+  {
+    "id": "read_missing_file",
+    "type": "python_assert",
+    "call": "readFile",
+    "args": ["__this_file_should_not_exist__.txt"],
+    "assertions": [{"op": "contains", "value": "Error happens in reading the file"}]
+  },
+  {
+    "id": "write_and_read_roundtrip",
+    "type": "python_assert",
+    "call": "write_read_roundtrip",
+    "args": ["evaluation/tmp_roundtrip.txt", "hello-eval"],
+    "assertions": [{"op": "equals", "value": "hello-eval"}]
+  },
+  {
+    "id": "system_info",
+    "type": "python_assert",
+    "call": "systemInfo",
+    "args": [],
+    "assertions": [{"op": "contains", "value": "system information"}]
+  },
+  {
+    "id": "parse_no_markers",
+    "type": "python_assert",
+    "call": "parse_code_response",
+    "args": ["```python\nprint('fallback')\n```"],
+    "assertions": [{"op": "dict_has_key", "value": "main.py"}]
+  },
+  {
+    "id": "extract_no_files",
+    "type": "python_assert",
+    "call": "_extract_requested_filenames",
+    "args": ["Build me a weather app"],
+    "assertions": [{"op": "list_len", "value": 0}]
+  },
+  {
+    "id": "validate_fence_fail",
+    "type": "python_assert",
+    "call": "_validate_generated_files",
+    "args": [{"main.py": "```oops```"}, ["main.py"], 1],
+    "assertions": [{"op": "tuple_first_equals", "value": false}]
+  },
+  {
+    "id": "detect_default_unknown",
+    "type": "python_assert",
+    "call": "_detect_default_filename",
+    "args": ["plain text"],
+    "assertions": [{"op": "equals", "value": "main.txt"}]
+  },
+  {
+    "id": "sanitize_empty",
+    "type": "python_assert",
+    "call": "_sanitize_filename",
+    "args": [""],
+    "assertions": [{"op": "equals", "value": ""}]
+  }
+]
